@@ -1,0 +1,14 @@
+var {PI, r, area, perim: real;}
+{
+  PI <- 3.14159;
+  write("Introduceti raza cercului: ");
+  read(r);
+  while (r < 0) do {
+      write("Raza trebuie sa fie un numar natural! Reintroduceti valoarea pentru raza!");
+      read(r);
+  }
+  area = PI * r * r;
+  write("Aria cercului este ",area);
+  perim = 2 * PI * r;
+  write("Perimetrul cercului este ",perim);
+}

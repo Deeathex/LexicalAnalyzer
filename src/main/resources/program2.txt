@@ -1,0 +1,37 @@
+var {a~p, b, cmmdc: integer;}
+{
+  cmmdc <- -1;
+  write("Introduceti cele doua numere: ");
+  read(a);
+  read(b);
+  if ((a = 0) and (b = 0)) then {
+    cmmdc <- 0;
+  }
+  else { 
+    if (a = 0) then {
+      cmmdc <- b;
+    }
+    else {
+      if (b = 0) then {
+        cmmdc <- a;
+      }
+    }
+  }
+  if ((a > 0) and (b > 0)) then {
+      while (a <> b) do {
+          if (a > b) then {
+             a <- a-b;
+          }
+          else {
+              b <- b-a;
+          }
+      }
+      cmmdc <- a;
+  }
+  if (cmmdc <> -1) then {
+      write("cmmdc=",cmmdc);
+  }
+  else {
+      write("Numerele trebuie sa fie naturale");
+  }
+}

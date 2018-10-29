@@ -1,18 +1,23 @@
-public enum Keyword {
-    VAR(0),
-    INTEGER(1),
-    REAL(2),
-    READ(3),
-    WRITE(4),
-    IF(5),
-    THEN(6),
-    ELSE(7),
-    WHILE(8),
-    DO(9);
+public enum Keyword implements IAtomTable {
+    VAR(10),
+    INTEGER(11),
+    REAL(12),
+    READ(13),
+    WRITE(14),
+    IF(15),
+    THEN(16),
+    ELSE(17),
+    WHILE(18),
+    DO(19);
 
-    private final int id;
+    private final int code;
 
-    Keyword(int id) {
-        this.id = id;
+    Keyword(int code) {
+        this.code = code;
+    }
+
+    @Override
+    public int getCode(){
+        return this.code;
     }
 }

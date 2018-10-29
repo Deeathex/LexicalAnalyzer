@@ -1,24 +1,24 @@
 import javafx.util.Pair;
 
 import java.io.*;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class LexicalAnalyzer {
     private String fileName;
-    private Map<Integer, String> SymbolTabel;
-    private List<Pair<Integer, Integer>> ProgramInternalForm;
+    private List<Pair<Integer, String>> symbolTable = new ArrayList<>();
+    private List<Pair<Integer, Integer>> programInternalForm = new ArrayList<>();
 
     private static final int MAX_IDENTIFIER_LENGTH = 250;
 
-    public LexicalAnalyzer() {
+    public LexicalAnalyzer(String fileName) {
+        this.fileName = fileName;
     }
 
-    public LexicalAnalyzer(String fileName, Map<Integer, String> symbolTabel, List<Pair<Integer, Integer>> programInternalForm) {
+    public LexicalAnalyzer(String fileName, List<Pair<Integer, String>> symbolTable, List<Pair<Integer, Integer>> programInternalForm) {
         this.fileName = fileName;
-        SymbolTabel = symbolTabel;
-        ProgramInternalForm = programInternalForm;
+        this.symbolTable = symbolTable;
+        this.programInternalForm = programInternalForm;
     }
 
     /**
@@ -33,22 +33,31 @@ public class LexicalAnalyzer {
         int lineNumber = 1;
         try (BufferedReader bufferedReader = new BufferedReader(new FileReader(file))) {
             String line;
-            int currentPosition = 0;
             while ((line = bufferedReader.readLine()) != null) {
-                String atom = atomDetection(line, currentPosition);
-                if ((isValidKeyword(atom)) || (isValidOperator(atom)) || (isValidSeparator(atom))) {
-                    //add(FIP,cod,-1);
-                } else {
-                    if ((isValidIdentifier(atom)) || (isValidConstant(atom))) {
-                        //poz<-cauta(atom,TS);
-                        //se returneaza pozitia pe care se afla atomin TS sau poz unde trebuie inserat
+                int currentPosition = 0;
+                while (currentPosition < line.length()) {
+                    Pair<String, Integer> atomAndCode = atomDetection(line, currentPosition);
+                    String atom = atomAndCode.getKey();
+                    //System.out.println(atom);
+                    currentPosition += atom.length();
+                    int code = atomAndCode.getValue();
+                    if ((isValidKeyword(atom) != -1) || (isValidOperator(atom) != -1) || (isValidSeparator(atom) != -1)) {
+                        addToProgramInternalForm(code, -1);
                     } else {
-                        error = true;
-                        System.out.println("Lexical error: found illegal character "+atom+" at line "+lineNumber);
+                        if ((isValidIdentifier(atom) != -1) || (isValidConstant(atom) != -1)) {
+                            int positionInSymbolTable = searchInSymbolTable(atom);
+                            if (positionInSymbolTable == -1) {
+                                positionInSymbolTable = insertInSymbolTable(atom);
+                            }
+                            addToProgramInternalForm(code, positionInSymbolTable);
+                        } else {
+                            error = true;
+                            System.err.println("Lexical error: found illegal character " + atom + " at line " + lineNumber);
+                        }
                     }
                 }
+                lineNumber++;
             }
-            lineNumber++;
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -57,26 +66,55 @@ public class LexicalAnalyzer {
         return error;
     }
 
-    private String atomDetection(String line, int startPosition) {
+    /**
+     * This method detects the longest possible atom that can be found starting from the startPosition param
+     * and identifies the code of the atom too.
+     *
+     * @param line          - represents the line read from the source code file
+     * @param startPosition - represents the position from which it has to find the longest possible atom
+     * @return a Pair<String, Integer> - the String (KEY) is the atom and the Integer (VALUE) is the code of the atom
+     */
+    private Pair<String, Integer> atomDetection(String line, int startPosition) {
         String atom = "";
         boolean error = false;
         int i = startPosition;
-        while (!error) {
-            int priorityStrongestTypeFound = 3;
+        int priorityStrongestTypeFound = 3;
+        int code;
+        int codeToBeReturned = -1;
+        // string literal check
+        if (line.charAt(startPosition) == '"' && startPosition < line.length() - 1) {
+            i++;
+            while (i < line.length() - 1 && line.charAt(i) != '"') {
+                i++;
+            }
             atom = line.substring(startPosition, i + 1);
-            if (isValidKeyword(atom)) {
+            if (line.charAt(i) != '"') {
+                codeToBeReturned = isValidConstant(atom);
+                return new Pair<>(atom, codeToBeReturned);
+            }
+        }
+        while (i<line.length() && !error) {
+            priorityStrongestTypeFound = 3;
+            atom = line.substring(startPosition, i + 1);
+            if ((code = isValidKeyword(atom)) != -1) {
+                codeToBeReturned = code;
                 priorityStrongestTypeFound = 1;
             }
-            if (isValidOperator(atom)) {
+            if ((code = isValidOperator(atom)) != -1) {
+                codeToBeReturned = code;
                 priorityStrongestTypeFound = 1;
             }
-            if (isValidSeparator(atom)) {
+            if ((code = isValidSeparator(atom)) != -1) {
+                codeToBeReturned = code;
                 priorityStrongestTypeFound = 1;
             }
-            if (isValidIdentifier(atom) && LexicalPriority.IDENTIFIER.getPriority() < priorityStrongestTypeFound) {
+            if ((code = isValidIdentifier(atom)) != -1 && LexicalPriority.IDENTIFIER.getPriority() < priorityStrongestTypeFound) {
+                codeToBeReturned = code;
                 priorityStrongestTypeFound = 2;
             }
-            if (isValidConstant(atom) && LexicalPriority.CONSTANT.getPriority() < priorityStrongestTypeFound) {
+            if (((code = isValidConstant(atom)) != -1 && LexicalPriority.CONSTANT.getPriority() < priorityStrongestTypeFound) ||
+                    ((i + 1 < line.length()) && (code = isValidConstant(line.substring(startPosition, i + 2))) != -1)) {
+                codeToBeReturned = code;
                 priorityStrongestTypeFound = 2;
             }
             if (priorityStrongestTypeFound == 3) {
@@ -85,50 +123,118 @@ public class LexicalAnalyzer {
             i++;
         }
         if (atom.length() <= 1) {
+            return new Pair<>(atom, codeToBeReturned);
+        }
+        if (error) {
+            return new Pair<>(atom.substring(0, atom.length() - 1), codeToBeReturned);
+        }
+        return new Pair<>(atom.substring(0, atom.length()), codeToBeReturned);
+    }
+
+    public String atomDetection1(String line, int startPosition) {
+        int i = startPosition;
+        String atom = "";
+        atom = line.substring(i, i + 1);
+        if (isValidSeparator(atom) != -1) {
+            // if the atom is already a separator, we have to return the separator
             return atom;
         }
-        return atom.substring(0, atom.length() - 1);
+        // While there are characters unexplored in line and we didn't find a separator, we take the longest possible atom
+        while ((i < line.length()) && (isValidSeparator(line.substring(i, i + 1)) == -1)) {
+            atom = line.substring(startPosition, i + 1);
+            i++;
+        }
+        return atom;
     }
 
     /**
      * Checks if an atom is a valid keyword
      *
      * @param atom - the atom that should be checked
-     * @return TRUE - if atom is one of the keywords
-     * FALSE - otherwise
+     * @return the atom's corresponding code - if atom is one of the keywords
+     * -1 - otherwise
      */
-    private boolean isValidKeyword(String atom) {
+    private int isValidKeyword(String atom) {
         for (Keyword keyword : Keyword.values()) {
             if (atom.equalsIgnoreCase(keyword.toString())) {
-                return true;
+                return keyword.getCode();
             }
         }
-        return false;
+        return -1;
     }
 
-    private boolean isValidOperator(String atom) {
+    private int isValidOperator(String atom) {
         for (Operator operator : Operator.values()) {
             if (atom.equalsIgnoreCase(operator.getOperator())) {
-                return true;
+                return operator.getCode();
             }
         }
-        return false;
+        return -1;
     }
 
-    private boolean isValidSeparator(String atom) {
+    private int isValidSeparator(String atom) {
         for (Separator separator : Separator.values()) {
             if (atom.equals(separator.getSeparator())) {
-                return true;
+                return separator.getCode();
             }
         }
-        return false;
+        return -1;
     }
 
-    private boolean isValidIdentifier(String atom) {
-        return atom.matches("^[A-Za-z][A-Za-z0-9_]{0," + (MAX_IDENTIFIER_LENGTH - 1) + "}$");
+    private int isValidIdentifier(String atom) {
+        if (atom.matches("^[A-Za-z][A-Za-z0-9_]{0," + (MAX_IDENTIFIER_LENGTH - 1) + "}$")) {
+            return Identifier.IDENTIFIER.getCode();
+        }
+        return -1;
     }
 
-    private boolean isValidConstant(String atom) {
-        return atom.matches("\"[^\"]*\"") || atom.matches("^[+-]?[0-9]*\\.?[0-9]+$");
+    public int isValidConstant(String atom) {
+        if (atom.matches("\"[^\"]*\"") || atom.matches("^[+-]?[0-9]*\\.?[0-9]+$")) {
+            return Constant.CONSTANT.getCode();
+        }
+        return -1;
+    }
+
+    /**
+     * Adds a pair of (code,position) where code that corresponds to the found atom, and position corresponds the
+     * with position in Symbol Table; position -1 represents that the atom doesn't belong to the Symbol Table)
+     *
+     * @param code     - the corresponding atom code of the atom from the AtomTable list (enum)
+     * @param position - the position from Symbol Table
+     */
+    private void addToProgramInternalForm(Integer code, Integer position) {
+        programInternalForm.add(new Pair<>(code, position));
+    }
+
+    /**
+     * @param atom - the atom we are looking for the corresponding position
+     * @return This method returns the position of the atom in the Symbol Table or -1 if the atom doesn't exist in the ST
+     */
+    private int searchInSymbolTable(String atom) {
+        if (!symbolTable.stream().map(Pair::getValue).collect(Collectors.toList()).contains(atom)) {
+            return -1;
+        }
+        for (Pair<Integer, String> pair : symbolTable) {
+            if (Objects.equals(pair.getValue(), atom)) {
+                return pair.getKey();
+            }
+        }
+        return -1;
+    }
+
+    private int insertInSymbolTable(String atom) {
+        int code = symbolTable.size();
+        Pair<Integer, String> pair = new Pair<>(code, atom);
+        symbolTable.add(pair);
+        symbolTable.sort(Comparator.comparing(Pair::getValue));
+        return code;
+    }
+
+    public List<Pair<Integer, String>> getSymbolTable() {
+        return symbolTable;
+    }
+
+    public List<Pair<Integer, Integer>> getProgramInternalForm() {
+        return programInternalForm;
     }
 }
