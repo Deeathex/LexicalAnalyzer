@@ -1,3 +1,5 @@
+package Model;
+
 public enum Separator implements IAtomTable {
     OPEN_BRACES("{",200),
     CLOSED_BRACES("}",201),

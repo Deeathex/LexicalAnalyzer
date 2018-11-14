@@ -1,3 +1,5 @@
+package Model;
+
 public enum AtomTable {
     ID(0),
     CONST(1),

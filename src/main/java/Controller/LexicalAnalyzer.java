@@ -1,3 +1,6 @@
+package Controller;
+
+import Model.*;
 import javafx.util.Pair;
 
 import java.io.*;
@@ -8,6 +11,8 @@ public class LexicalAnalyzer {
     private String fileName;
     private List<Pair<Integer, String>> symbolTable = new ArrayList<>();
     private List<Pair<Integer, Integer>> programInternalForm = new ArrayList<>();
+    private final FSMController fsmController = new FSMController();
+    private static final boolean FSM = true;
 
     private static final int MAX_IDENTIFIER_LENGTH = 250;
 
@@ -41,7 +46,7 @@ public class LexicalAnalyzer {
                     //System.out.println(atom);
                     currentPosition += atom.length();
                     int code = atomAndCode.getValue();
-                    if ((isValidKeyword(atom) != -1) || (isValidOperator(atom) != -1) || (isValidSeparator(atom) != -1)) {
+                    if ((isValidKeyword_regex(atom) != -1) || (isValidOperator_regex(atom) != -1) || (isValidSeparator_regex(atom) != -1)) {
                         addToProgramInternalForm(code, -1);
                     } else {
                         if ((isValidIdentifier(atom) != -1) || (isValidConstant(atom) != -1)) {
@@ -96,15 +101,15 @@ public class LexicalAnalyzer {
         while (i<line.length() && !error) {
             priorityStrongestTypeFound = 3;
             atom = line.substring(startPosition, i + 1);
-            if ((code = isValidKeyword(atom)) != -1) {
+            if ((code = isValidKeyword_regex(atom)) != -1) {
                 codeToBeReturned = code;
                 priorityStrongestTypeFound = 1;
             }
-            if ((code = isValidOperator(atom)) != -1) {
+            if ((code = isValidOperator_regex(atom)) != -1) {
                 codeToBeReturned = code;
                 priorityStrongestTypeFound = 1;
             }
-            if ((code = isValidSeparator(atom)) != -1) {
+            if ((code = isValidSeparator_regex(atom)) != -1) {
                 codeToBeReturned = code;
                 priorityStrongestTypeFound = 1;
             }
@@ -131,22 +136,6 @@ public class LexicalAnalyzer {
         return new Pair<>(atom.substring(0, atom.length()), codeToBeReturned);
     }
 
-    public String atomDetection1(String line, int startPosition) {
-        int i = startPosition;
-        String atom = "";
-        atom = line.substring(i, i + 1);
-        if (isValidSeparator(atom) != -1) {
-            // if the atom is already a separator, we have to return the separator
-            return atom;
-        }
-        // While there are characters unexplored in line and we didn't find a separator, we take the longest possible atom
-        while ((i < line.length()) && (isValidSeparator(line.substring(i, i + 1)) == -1)) {
-            atom = line.substring(startPosition, i + 1);
-            i++;
-        }
-        return atom;
-    }
-
     /**
      * Checks if an atom is a valid keyword
      *
@@ -154,7 +143,7 @@ public class LexicalAnalyzer {
      * @return the atom's corresponding code - if atom is one of the keywords
      * -1 - otherwise
      */
-    private int isValidKeyword(String atom) {
+    private int isValidKeyword_regex(String atom) {
         for (Keyword keyword : Keyword.values()) {
             if (atom.equalsIgnoreCase(keyword.toString())) {
                 return keyword.getCode();
@@ -163,7 +152,7 @@ public class LexicalAnalyzer {
         return -1;
     }
 
-    private int isValidOperator(String atom) {
+    private int isValidOperator_regex(String atom) {
         for (Operator operator : Operator.values()) {
             if (atom.equalsIgnoreCase(operator.getOperator())) {
                 return operator.getCode();
@@ -172,7 +161,7 @@ public class LexicalAnalyzer {
         return -1;
     }
 
-    private int isValidSeparator(String atom) {
+    private int isValidSeparator_regex(String atom) {
         for (Separator separator : Separator.values()) {
             if (atom.equals(separator.getSeparator())) {
                 return separator.getCode();
@@ -182,24 +171,48 @@ public class LexicalAnalyzer {
     }
 
     private int isValidIdentifier(String atom) {
+        return FSM ? isValidIdentifier_FSM(atom) : isValidIdentifier_regex(atom);
+    }
+
+    private int isValidConstant(String atom) {
+        return FSM ? isValidConstant_FSM(atom) : isValidConstant_regex(atom);
+    }
+
+    private int isValidIdentifier_regex(String atom) {
         if (atom.matches("^[A-Za-z][A-Za-z0-9_]{0," + (MAX_IDENTIFIER_LENGTH - 1) + "}$")) {
             return Identifier.IDENTIFIER.getCode();
         }
         return -1;
     }
 
-    public int isValidConstant(String atom) {
+    private int isValidConstant_regex(String atom) {
         if (atom.matches("\"[^\"]*\"") || atom.matches("^[+-]?[0-9]*\\.?[0-9]+$")) {
             return Constant.CONSTANT.getCode();
         }
         return -1;
     }
 
+    private int isValidIdentifier_FSM(String atom) {
+        if (fsmController.getIdentifiersFSM().sequenceAccepted(atom)) {
+            return Identifier.IDENTIFIER.getCode();
+        }
+        return -1;
+    }
+
+    private int isValidConstant_FSM(String atom) {
+        if (atom.matches("\"[^\"]*\"") || fsmController.getNumericConstantsFSM().sequenceAccepted(atom)) {
+            return Constant.CONSTANT.getCode();
+        }
+        return -1;
+    }
+
+
+
     /**
      * Adds a pair of (code,position) where code that corresponds to the found atom, and position corresponds the
      * with position in Symbol Table; position -1 represents that the atom doesn't belong to the Symbol Table)
      *
-     * @param code     - the corresponding atom code of the atom from the AtomTable list (enum)
+     * @param code     - the corresponding atom code of the atom from the Model.AtomTable list (enum)
      * @param position - the position from Symbol Table
      */
     private void addToProgramInternalForm(Integer code, Integer position) {

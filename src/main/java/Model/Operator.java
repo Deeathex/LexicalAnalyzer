@@ -1,3 +1,5 @@
+package Model;
+
 public enum Operator implements IAtomTable {
     ADDITION("+",100),
     SUBTRACTION("-",101),

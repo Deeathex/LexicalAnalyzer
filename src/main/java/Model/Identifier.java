@@ -1,3 +1,5 @@
+package Model;
+
 public enum Identifier implements IAtomTable {
     IDENTIFIER(0);
 

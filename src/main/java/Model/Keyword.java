@@ -1,3 +1,5 @@
+package Model;
+
 public enum Keyword implements IAtomTable {
     VAR(10),
     INTEGER(11),

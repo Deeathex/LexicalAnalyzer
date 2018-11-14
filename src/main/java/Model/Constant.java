@@ -1,3 +1,5 @@
+package Model;
+
 public enum Constant implements IAtomTable {
     CONSTANT(1);
 

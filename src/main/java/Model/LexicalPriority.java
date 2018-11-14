@@ -1,3 +1,5 @@
+package Model;
+
 public enum LexicalPriority {
     KEYWORD(1),
     OPERATOR(1),
